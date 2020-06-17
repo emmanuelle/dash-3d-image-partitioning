@@ -1,0 +1,9 @@
+plotly
+dash
+pandas
+scikit-image
+dash_canvas
+joblib
+ipython
+nilearn
+gunicorn
