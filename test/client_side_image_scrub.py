@@ -9,6 +9,10 @@ import plot_common
 import image_utils
 import numpy as np
 from nilearn import image
+import plotly.express as px
+
+DEFAULT_STROKE_COLOR=px.colors.qualitative.Light24[0]
+DEFAULT_STROKE_WIDTH=5
 
 def make_seg_image(img):
     """ Segment the image, then find the boundaries, then return an array that
@@ -25,6 +29,28 @@ def make_seg_image(img):
     #segl=image_utils.label_to_colors(seg)
     return segl
 
+def make_default_figure(
+    images=[],
+    stroke_color=DEFAULT_STROKE_COLOR,
+    stroke_width=DEFAULT_STROKE_WIDTH,
+    shapes=[],
+    img_args=dict(layer='above')
+):
+    fig = plot_common.dummy_fig()
+    plot_common.add_layout_images_to_fig(fig,
+    images,img_args=img_args,width_scale=4, height_scale=4,
+    update_figure_dims='height')
+    fig.update_layout(
+        {
+            "dragmode": "drawopenpath",
+            "shapes": shapes,
+            "newshape.line.color": stroke_color,
+            "newshape.line.width": stroke_width,
+            "margin": dict(l=0, r=0, b=0, t=0, pad=4),
+        }
+    )
+    return fig
+
 img = image.load_img("assets/BraTS19_2013_10_1_flair.nii")
 img = img.get_data().transpose(2,0,1).astype('float')
 img = img_as_ubyte((img - img.min())/(img.max() - img.min()))
@@ -36,11 +62,7 @@ seg_slices = [array_to_data_url(seg_img[i]) for i in range(seg_img.shape[0])]
 
 app = dash.Dash(__name__)
 
-fig=figure=plot_common.dummy_fig()
-fig=plot_common.add_layout_images_to_fig(fig,[img_slices[0],seg_slices[0]],img_args=dict(layer='above'),
-width_scale=4,
-height_scale=4,
-update_figure_dims='height')
+fig=make_default_figure(images=[img_slices[0],seg_slices[0]])
 
 #print(fig.show('json'))
 
