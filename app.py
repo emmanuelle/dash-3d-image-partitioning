@@ -16,13 +16,12 @@ DEFAULT_STROKE_WIDTH=5
 
 def make_seg_image(img):
     """ Segment the image, then find the boundaries, then return an array that
-    is clear where there are no boundaries. """
+    is clear (alpha=0) where there are no boundaries. """
     segb=np.zeros_like(img).astype('uint8')
     seg=segmentation.slic(img,start_label=1,multichannel=False,compactness=0.1,n_segments=300)
     segb=segmentation.find_boundaries(seg).astype('uint8')
     segl=image_utils.label_to_colors(
     segb, colormap=['#000000','#E48F72'], alpha=[0,128], color_class_offset=0)
-    #segl=image_utils.label_to_colors(seg)
     return segl
 
 def make_default_figure(
@@ -65,7 +64,8 @@ fig=make_default_figure(images=[img_slices[0],seg_slices[0]])
 app.layout=html.Div([
     dcc.Store(id="image-slices",data=img_slices),
     dcc.Store(id="seg-slices",data=seg_slices),
-    dcc.Store(id="drawn-shapes",data=[]),
+    dcc.Store(id="drawn-shapes",data={}),
+    dcc.Store(id="slice-number",data=0),
     dcc.Slider(id="image-select",min=0,max=len(img_slices),step=1,updatemode="drag",value=0),
     html.Div(id='image-select-display'),
     dcc.Checklist(
@@ -83,6 +83,7 @@ app.clientside_callback(
 function(
     image_select_value,
     show_seg_check,
+    drawn_shapes_data,
     image_slices_data,
     image_display_figure,
     seg_slices_data) {
@@ -99,18 +100,39 @@ function(
     } else {
         image_display_figure_.layout.images[1].source="";
     }
+    image_display_figure_.layout.shapes=drawn_shapes_data[image_select_value];
     console.log(image_display_figure_);
-    return [image_display_figure_,image_select_value];
+    return [image_display_figure_,image_select_value,image_select_value];
 }
 """
 ,
-    [Output("image-display-graph","figure"),Output("image-select-display","children")],
+    [Output("image-display-graph","figure"),
+    Output("image-select-display","children"),
+    Output("slice-number","data")],
     [Input("image-select","value"),
-     Input("show-seg-check","value")],
+     Input("show-seg-check","value"),
+     Input("drawn-shapes","data")],
     [State("image-slices","data"),
      State("image-display-graph","figure"),
      State("seg-slices","data")]
 )
+
+app.clientside_callback(
+"""
+function(graph_relayout_data, slice_number_data, drawn_shapes_data)
+{
+    console.log("relayoutData");
+    console.log(graph_relayout_data);
+    if (graph_relayout_data && ("shapes" in graph_relayout_data)) {
+        drawn_shapes_data[slice_number_data]=graph_relayout_data.shapes;
+    }
+    return drawn_shapes_data;
+}
+""",
+Output("drawn-shapes","data"),
+[Input("image-display-graph","relayoutData")],
+[State("slice-number","data"),
+ State("drawn-shapes","data")])
 
 if __name__ == '__main__':
     app.run_server(debug=True)
