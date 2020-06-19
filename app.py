@@ -16,8 +16,8 @@ from sys import exit
 
 DEFAULT_STROKE_COLOR=px.colors.qualitative.Light24[0]
 DEFAULT_STROKE_WIDTH=5
-WIDTH_SCALE=1
-HEIGHT_SCALE=1
+WIDTH_SCALE=4
+HEIGHT_SCALE=4
 
 # A string, if length non-zero, saves superpixels to this file and then exits
 SAVE_SUPERPIXEL=get_env("SAVE_SUPERPIXEL",default="")
@@ -202,7 +202,8 @@ def draw_shapes_react(drawn_shapes_data,image_display_graph_figure):
             mask=shape_utils.shapes_to_mask(shape_args,
                  # we only have one label class, so the mask is given value 1
                  1)
-            masks[i,:,:]=mask
+            # TODO: Maybe there's a more elegant way to downsample the mask?
+            masks[i,:,:]=mask[::HEIGHT_SCALE,::WIDTH_SCALE]
     import pdb
     #pdb.set_trace()
     found_segs_tensor=np.zeros_like(img)
