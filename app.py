@@ -16,8 +16,8 @@ from sys import exit
 
 DEFAULT_STROKE_COLOR=px.colors.qualitative.Light24[0]
 DEFAULT_STROKE_WIDTH=5
-WIDTH_SCALE=4
-HEIGHT_SCALE=4
+WIDTH_SCALE=2
+HEIGHT_SCALE=2
 
 # A string, if length non-zero, saves superpixels to this file and then exits
 SAVE_SUPERPIXEL=get_env("SAVE_SUPERPIXEL",default="")
@@ -78,9 +78,16 @@ img = img_as_ubyte((img - img.min())/(img.max() - img.min()))
 
 if len(LOAD_SUPERPIXEL) > 0:
     # load partitioned image (to save time)
-    dat=np.load(LOAD_SUPERPIXEL)
-    segl=dat['segl']
-    seg=dat['seg']
+    if LOAD_SUPERPIXEL.endswith('.gz'):
+        import gzip
+        with gzip.open(LOAD_SUPERPIXEL) as fd:
+            dat = np.load(fd)
+            segl=dat['segl']
+            seg=dat['seg']
+    else:
+        dat=np.load(LOAD_SUPERPIXEL)
+        segl=dat['segl']
+        seg=dat['seg']
 else:
     # partition image
     segl,seg=make_seg_image(img)
