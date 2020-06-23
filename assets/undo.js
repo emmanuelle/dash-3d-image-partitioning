@@ -12,49 +12,63 @@ function* _range_gen(N) {
 //    self.n_shape_lists=n_shape_lists;
 //}
 
-// Return true if shapes are different from the last shapes stored in
-// undo_shapes
-UndoState_shapes_changed = function (self,shapes) {
-    return !(shapes == self.undo_shapes[-1]);
+// Check if clicked and update the number of clicks
+function UndoState_undo_clicked(self, undo_n_clicks) {
+    ret = (undo_n_clicks > self.undo_n_clicks);
+    self.undo_n_clicks = undo_n_clicks;
+    return ret;
 }
 
-// Add new shapes and empty the redo list (because if redos could be called,
+// Check if clicked and update the number of clicks
+function UndoState_redo_clicked(self, redo_n_clicks) {
+    ret = (redo_n_clicks > self.redo_n_clicks);
+    self.redo_n_clicks = redo_n_clicks;
+    return ret;
+}
+
+// Return true if shapes are different from the last shapes stored in
+// undo_shapes
+function UndoState_shapes_changed (self,shapes) {
+    return !(shapes == self.undo_shapes[self.undo_shapes.length-1]);
+}
+
+// Add new shapes and empty the redo list (because if redos exist,
 // they are now irrelevant after adding a new shape)
-UndoState_add_new_shapes = function (self,shapes) {
+function UndoState_add_new_shapes (self,shapes) {
     self.redo_shapes = [];
-    self.undo_shapes.append(shapes);
+    self.undo_shapes.push(shapes);
 }
 
 // Add new shapes to the undo list if shapes are new
-UndoState_track_changes = function (self,shapes) {
+function UndoState_track_changes (self,shapes) {
     if (UndoState_shapes_changed(self,shapes)) {
         UndoState_add_new_shapes(self,shapes);
     }
 }
 
-UndoState__return_last_undo = function (self) {
+function UndoState__return_last_undo (self) {
     if (!self.undo_shapes.length) {
         return Array.from(
             _range_gen(self.n_shape_lists),
             ()=>[]);
     }
-    let ret = self.undo_shapes[-1];
+    let ret = self.undo_shapes[self.undo_shapes.length-1];
     return ret;
 }    
 
 // Undo returns previous shapes and stores the current shapes in the redo list
-UndoState_apply_undo = function (self) {
+function UndoState_apply_undo (self) {
     if (self.undo_shapes.length) {
-        self.redo_shapes.append(self.undo_shapes.pop());
+        self.redo_shapes.push(self.undo_shapes.pop());
     }
     return UndoState__return_last_undo(self);
 }
 
 // Redo puts last redo on top of the undo list and returns the set of shapes at
 // the end of the undo list
-UndoState_apply_redo = function (self) {
+function UndoState_apply_redo (self) {
     if (self.redo_shapes.length) {
-        self.undo_shapes.append(self.redo_shapes.pop());
+        self.undo_shapes.push(self.redo_shapes.pop());
     }
     return UndoState__return_last_undo(self);
 }
