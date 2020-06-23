@@ -9,7 +9,10 @@ function* _range_gen(N) {
 //    self.redo_n_clicks=0;
 //    self.undo_shapes=[];
 //    self.redo_shapes=[];
-//    self.n_shape_lists=n_shape_lists;
+//    // This has to be set depending on the shape. Here the example is for two
+//    // figures, the shapes of the left figure in the first item of the list, the
+//    // shapes of the right in the second item.
+//    self.empty_shapes=[[],[]];
 //}
 
 // Check if clicked and update the number of clicks
@@ -48,9 +51,7 @@ function UndoState_track_changes (self,shapes) {
 
 function UndoState__return_last_undo (self) {
     if (!self.undo_shapes.length) {
-        return Array.from(
-            _range_gen(self.n_shape_lists),
-            ()=>[]);
+        return json_copy(self.empty_shapes);
     }
     let ret = self.undo_shapes[self.undo_shapes.length-1];
     return ret;
