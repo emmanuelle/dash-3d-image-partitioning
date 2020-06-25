@@ -97,10 +97,14 @@ if len(SAVE_SUPERPIXEL) > 0:
     exit(0)
 
 seg_img=img_as_ubyte(segl)
-img_slices=[array_to_data_url(img[i, :, :]) for i in range(img.shape[0])]
-seg_slices = [array_to_data_url(seg_img[i]) for i in range(seg_img.shape[0])] 
+img_slices,seg_slices=[[
+    # top
+    array_to_data_url(im[i, :, :]) for i in range(im.shape[0]),
+    # side
+    array_to_data_url(im[:, i, :]) for i in range(im.shape[1])
+    ] for im in [img,seg_img]]
 # initially no slices have been found so we don't draw anything
-found_seg_slices=["" for i in range(seg_img.shape[0])]
+found_seg_slices=[["" for i in range(seg_img.shape[i])] for i,_ in enumerate(seg_slices)]
 
 app = dash.Dash(__name__)
 
@@ -111,11 +115,26 @@ fig=make_default_figure(images=[img_slices[0],seg_slices[0]])
 app.layout=html.Div([
     dcc.Store(id="image-slices",data=img_slices),
     dcc.Store(id="seg-slices",data=seg_slices),
-    dcc.Store(id="drawn-shapes",data=[[] for _ in seg_slices]),
-    dcc.Store(id="slice-number",data=0),
+    dcc.Store(id="drawn-shapes",data=[[[] for _ in range(seg_img.shape[i])] for i in 2]),
+    dcc.Store(id="slice-number-top",data=0),
+    dcc.Store(id="slice-number-side",data=0),
     dcc.Store(id="found-segs",data=found_seg_slices),
-    dcc.Slider(id="image-select",min=0,max=len(img_slices),step=1,updatemode="drag",value=0),
-    html.Div(id='image-select-display'),
+    dcc.Store("undo-data",data=dict(
+        undo_n_clicks=0,
+        redo_n_clicks=0,
+        undo_shapes=[],
+        redo_shapes=[],
+        # 2 arrays, one for each image-display-graph-{top,side}
+        # each array contains the number of slices in that image view, and each
+        # item of this array contains a list of shapes
+        empty_shapes=[[[] for _ in range(seg_img.shape[i])] for i in 2]
+    )),
+    dcc.Slider(id="image-select-top",min=0,max=len(img_slices[0]),step=1,updatemode="drag",
+        value=0),
+    dcc.Slider(id="image-select-side",min=0,max=len(img_slices[1]),step=1,updatemode="drag",
+        value=0),
+    html.Div(id='image-select-top-display'),
+    html.Div(id='image-select-side-display'),
     dcc.Checklist(
         id='show-seg-check',
         options=[
@@ -123,37 +142,34 @@ app.layout=html.Div([
         ],
         value=['show']
     ),
-    dcc.Graph(id="image-display-graph",figure=fig)
+    html.Button("Undo",id="undo-button",n_clicks=0),
+    html.Button("Redo",id="redo-button",n_clicks=0),
+    dcc.Graph(id="image-display-graph-top",figure=fig),
+    dcc.Graph(id="image-display-graph-side",figure=fig)
 ])
 
 app.clientside_callback(
 """
 function(
-    image_select_value,
+    image_select_top_value,
+    image_select_side_value,
     show_seg_check,
     found_segs_data,
     image_slices_data,
-    image_display_figure,
+    image_display_top_figure,
+    image_display_side_figure,
     seg_slices_data,
     drawn_shapes_data) {
-
-    console.log(image_display_figure);
-    var image_display_figure_ = json_copy(image_display_figure);
-    if (!image_select_value) {
-        // define if undefined
-        image_select_value = 0;
-    }
-    image_display_figure_.layout.images[0].source=image_slices_data[image_select_value];
-    if (show_seg_check == 'show') {
-        image_display_figure_.layout.images[1].source=seg_slices_data[image_select_value];
-        image_display_figure_.layout.images[2].source=found_segs_data[image_select_value];
-    } else {
-        image_display_figure_.layout.images[1].source="";
-        image_display_figure_.layout.images[2].source="";
-    }
-    image_display_figure_.layout.shapes=drawn_shapes_data[image_select_value];
-    console.log(image_display_figure_);
-    return [image_display_figure_,image_select_value,image_select_value];
+    let image_display_figures_ = figure_display_update(
+        [image_select_top_value,image_select_side_value],
+        show_seg_check,
+        found_segs_data,
+        image_slices_data,
+        [image_display_top_figure,image_display_side_figure],
+        seg_slices_data,
+        drawn_shapes_data);
+    return image_display_figures_.concat([image_select_top_value,
+                                          image_select_side_value]);
 }
 """
 ,
@@ -171,20 +187,42 @@ function(
 
 app.clientside_callback(
 """
-function(graph_relayout_data, slice_number_data, drawn_shapes_data)
+function(top_relayout_data,
+side_relayout_data,
+undo_n_clicks,
+redo_n_clicks,
+top_slice_number,
+side_slice_number,
+drawn_shapes_data,
+undo_data)
 {
-    console.log("relayoutData");
-    console.log(graph_relayout_data);
-    if (graph_relayout_data && ("shapes" in graph_relayout_data)) {
-        drawn_shapes_data[slice_number_data]=graph_relayout_data.shapes;
-    }
-    return drawn_shapes_data;
+    let new_drawn_shapes_data = undo_track_slice_figure_shapes (
+    [top_relayout_data,side_relayout_data],
+    ["image-display-graph-top.relayoutData",
+     "image-display-graph-side.relayoutData"],
+    undo_n_clicks,
+    redo_n_clicks,
+    undo_data,
+    drawn_shapes_data,
+    [top_slice_number,side_slice_number]
+    // a function that takes a list of shapes and returns those that we want to
+    // track (for example if some shapes are to show some attribute but should not
+    // be tracked by undo/redo)
+    // TODO: This function needs implementing
+    shape_filter,
+    );
+    return [new_drawn_shapes_data,undo_data];
 }
 """,
-Output("drawn-shapes","data"),
-[Input("image-display-graph","relayoutData")],
-[State("slice-number","data"),
- State("drawn-shapes","data")])
+[Output("drawn-shapes","data"),Output("undo-data","data")],
+[Input("image-display-graph-top","relayoutData"),
+ Input("image-display-graph-side","relayoutData"),
+ Input("undo-button","n_clicks"),
+ Input("redo-button","n_clicks"),],
+[State("slice-number-top","data"),
+ State("slice-number-side","data"),
+ State("drawn-shapes","data"),
+ State("undo-data","data")])
 
 @app.callback(
 Output("found-segs","data"),
@@ -211,8 +249,6 @@ def draw_shapes_react(drawn_shapes_data,image_display_graph_figure):
                  1)
             # TODO: Maybe there's a more elegant way to downsample the mask?
             masks[i,:,:]=mask[::HEIGHT_SCALE,::WIDTH_SCALE]
-    import pdb
-    #pdb.set_trace()
     found_segs_tensor=np.zeros_like(img)
     # find labels beneath the mask
     labels=set(seg[1==masks])
