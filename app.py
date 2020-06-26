@@ -16,8 +16,12 @@ from sys import exit
 
 DEFAULT_STROKE_COLOR=px.colors.qualitative.Light24[0]
 DEFAULT_STROKE_WIDTH=5
-WIDTH_SCALE=2
-HEIGHT_SCALE=2
+# the scales for the top and side images (they might be different)
+hwscales=[(1,1),(2,1)]#[(2,2),(4,2)]
+# the number of dimensions displayed
+NUM_DIMS_DISPLAYED=2 # top and side
+# the color of the triangles displaying the slice number
+INDICATOR_COLOR="DarkOrange"
 
 # A string, if length non-zero, saves superpixels to this file and then exits
 SAVE_SUPERPIXEL=get_env("SAVE_SUPERPIXEL",default="")
@@ -39,11 +43,15 @@ def make_default_figure(
     stroke_color=DEFAULT_STROKE_COLOR,
     stroke_width=DEFAULT_STROKE_WIDTH,
     shapes=[],
-    img_args=dict(layer='above')
+    img_args=dict(layer='above'),
+    width_scale=1,
+    height_scale=1
 ):
     fig = plot_common.dummy_fig()
     plot_common.add_layout_images_to_fig(fig,
-    images,img_args=img_args,width_scale=WIDTH_SCALE, height_scale=HEIGHT_SCALE,
+    images,img_args=img_args,
+    width_scale=width_scale,
+    height_scale=height_scale,
     update_figure_dims='height')
     # add an empty image with the same size as the greatest of the already added
     # images so that we can add computed masks clientside later
@@ -74,6 +82,7 @@ def make_default_figure(
 
 img = image.load_img("assets/BraTS19_2013_10_1_flair.nii")
 img = img.get_data().transpose(2,0,1).astype('float')
+print('img.shape',img.shape)
 img = img_as_ubyte((img - img.min())/(img.max() - img.min()))
 
 if len(LOAD_SUPERPIXEL) > 0:
@@ -99,23 +108,28 @@ if len(SAVE_SUPERPIXEL) > 0:
 seg_img=img_as_ubyte(segl)
 img_slices,seg_slices=[[
     # top
-    array_to_data_url(im[i, :, :]) for i in range(im.shape[0]),
+    [array_to_data_url(im[i, :, :]) for i in range(im.shape[0])],
     # side
-    array_to_data_url(im[:, i, :]) for i in range(im.shape[1])
+    [array_to_data_url(im[:, i, :]) for i in range(im.shape[1])]
     ] for im in [img,seg_img]]
 # initially no slices have been found so we don't draw anything
 found_seg_slices=[["" for i in range(seg_img.shape[i])] for i,_ in enumerate(seg_slices)]
 
 app = dash.Dash(__name__)
 
-fig=make_default_figure(images=[img_slices[0],seg_slices[0]])
+top_fig,side_fig=[
+make_default_figure(images=[img_slices[i][0],seg_slices[i][0]],
+width_scale=hwscales[i][1],
+height_scale=hwscales[i][0],
+)
+for i in range(NUM_DIMS_DISPLAYED)]
 
 #print(fig.show('json'))
 
 app.layout=html.Div([
     dcc.Store(id="image-slices",data=img_slices),
     dcc.Store(id="seg-slices",data=seg_slices),
-    dcc.Store(id="drawn-shapes",data=[[[] for _ in range(seg_img.shape[i])] for i in 2]),
+    dcc.Store(id="drawn-shapes",data=[[[] for _ in range(seg_img.shape[i])] for i in range(NUM_DIMS_DISPLAYED)]),
     dcc.Store(id="slice-number-top",data=0),
     dcc.Store(id="slice-number-side",data=0),
     dcc.Store(id="found-segs",data=found_seg_slices),
@@ -127,7 +141,7 @@ app.layout=html.Div([
         # 2 arrays, one for each image-display-graph-{top,side}
         # each array contains the number of slices in that image view, and each
         # item of this array contains a list of shapes
-        empty_shapes=[[[] for _ in range(seg_img.shape[i])] for i in 2]
+        empty_shapes=[[[] for _ in range(seg_img.shape[i])] for i in range(NUM_DIMS_DISPLAYED)]
     )),
     dcc.Slider(id="image-select-top",min=0,max=len(img_slices[0]),step=1,updatemode="drag",
         value=0),
@@ -144,8 +158,8 @@ app.layout=html.Div([
     ),
     html.Button("Undo",id="undo-button",n_clicks=0),
     html.Button("Redo",id="redo-button",n_clicks=0),
-    dcc.Graph(id="image-display-graph-top",figure=fig),
-    dcc.Graph(id="image-display-graph-side",figure=fig)
+    dcc.Graph(id="image-display-graph-top",figure=top_fig),
+    dcc.Graph(id="image-display-graph-side",figure=side_fig)
 ])
 
 app.clientside_callback(
@@ -167,20 +181,51 @@ function(
         image_slices_data,
         [image_display_top_figure,image_display_side_figure],
         seg_slices_data,
-        drawn_shapes_data);
+        drawn_shapes_data),
+        // slider order reversed because the image slice number is shown on the
+        // other figure
+        side_figure = image_display_figures_[1],
+        top_figure = image_display_figures_[0],
+        d=3,
+        sizex, sizey;
+    // append shapes that show what slice the other figure is in
+    sizex = top_figure.layout.images[0].sizex,
+    sizey = top_figure.layout.images[0].sizey;
+    top_figure.layout.shapes=top_figure.layout.shapes.concat([
+        tri_shape(d/2,sizey*image_select_side_value/found_segs_data[1].length,
+                  d/2,d/2,'right'),
+        tri_shape(sizex-d/2,sizey*image_select_side_value/found_segs_data[1].length,
+                  d/2,d/2,'left'),
+    ]);
+    sizex = side_figure.layout.images[0].sizex,
+    sizey = side_figure.layout.images[0].sizey;
+    side_figure.layout.shapes=side_figure.layout.shapes.concat([
+        tri_shape(d/2,sizey*image_select_top_value/found_segs_data[0].length,
+                  d/2,d/2,'right'),
+        tri_shape(sizex-d/2,sizey*image_select_top_value/found_segs_data[0].length,
+                  d/2,d/2,'left'),
+    ]);
     return image_display_figures_.concat([image_select_top_value,
-                                          image_select_side_value]);
+                                          image_select_side_value,
+                                          image_select_top_value,
+                                          image_select_side_value
+                                          ]);
 }
 """
 ,
-    [Output("image-display-graph","figure"),
-    Output("image-select-display","children"),
-    Output("slice-number","data")],
-    [Input("image-select","value"),
+    [Output("image-display-graph-top","figure"),
+     Output("image-display-graph-side","figure"),
+     Output("image-select-top-display","children"),
+     Output("image-select-side-display","children"),
+     Output("slice-number-top","data"),
+     Output("slice-number-side","data")],
+    [Input("image-select-top","value"),
+     Input("image-select-side","value"),
      Input("show-seg-check","value"),
      Input("found-segs","data")],
     [State("image-slices","data"),
-     State("image-display-graph","figure"),
+     State("image-display-graph-top","figure"),
+     State("image-display-graph-side","figure"),
      State("seg-slices","data"),
      State("drawn-shapes","data")]
 )
@@ -196,7 +241,7 @@ side_slice_number,
 drawn_shapes_data,
 undo_data)
 {
-    let new_drawn_shapes_data = undo_track_slice_figure_shapes (
+    let ret = undo_track_slice_figure_shapes (
     [top_relayout_data,side_relayout_data],
     ["image-display-graph-top.relayoutData",
      "image-display-graph-side.relayoutData"],
@@ -204,16 +249,23 @@ undo_data)
     redo_n_clicks,
     undo_data,
     drawn_shapes_data,
-    [top_slice_number,side_slice_number]
+    [top_slice_number,side_slice_number],
     // a function that takes a list of shapes and returns those that we want to
     // track (for example if some shapes are to show some attribute but should not
     // be tracked by undo/redo)
-    // TODO: This function needs implementing
-    shape_filter,
-    );
-    return [new_drawn_shapes_data,undo_data];
+    function (shapes) { return shapes.filter(function (s) {
+            let ret = true;
+            try { ret &= (s.fillcolor == "%s"); } catch(err) { ret &= false; }
+            try { ret &= (s.line.color == "%s"); } catch(err) { ret &= false; }
+            // return !ret because we don't want to keep the indicators
+            return !ret;
+        });
+    });
+    undo_data=ret[0];
+    drawn_shapes_data=ret[1];
+    return [drawn_shapes_data,undo_data];
 }
-""",
+""" % ((INDICATOR_COLOR,)*2),
 [Output("drawn-shapes","data"),Output("undo-data","data")],
 [Input("image-display-graph-top","relayoutData"),
  Input("image-display-graph-side","relayoutData"),
@@ -227,28 +279,32 @@ undo_data)
 @app.callback(
 Output("found-segs","data"),
 [Input("drawn-shapes","data")],
-[State("image-display-graph","figure")])
-def draw_shapes_react(drawn_shapes_data,image_display_graph_figure):
+[State("image-display-graph-top","figure"),
+ State("image-display-graph-side","figure")])
+def draw_shapes_react(drawn_shapes_data,
+                      image_display_top_figure,
+                      image_display_side_figure):
     
-    if drawn_shapes_data is None or image_display_graph_figure is None:
+    if any([e is None for e in [drawn_shapes_data,image_display_top_figure,image_display_side_figure]]):
         return dash.no_update
-    fig=go.Figure(**image_display_graph_figure)
-    # we use the width and the height of the first layout image (this will be
-    # one of the images of the brain) to get the bounding box of the SVG that we
-    # want to rasterize
-    width,height=[fig.layout.images[0][sz] for sz in ['sizex','sizey']]
-    masks=np.zeros_like(img)
-    for i in range(seg_img.shape[0]):
-        shape_args=[
-        dict(width=width,
-             height=height,
-             shape=s) for s in drawn_shapes_data[i]]
-        if len(shape_args) > 0:
-            mask=shape_utils.shapes_to_mask(shape_args,
-                 # we only have one label class, so the mask is given value 1
-                 1)
-            # TODO: Maybe there's a more elegant way to downsample the mask?
-            masks[i,:,:]=mask[::HEIGHT_SCALE,::WIDTH_SCALE]
+    for j,(graph_figure,(hscale,wscale)) in enumerate(zip([image_display_top_figure,image_display_side_figure],hwscales)):
+        fig=go.Figure(**graph_figure)
+        # we use the width and the height of the first layout image (this will be
+        # one of the images of the brain) to get the bounding box of the SVG that we
+        # want to rasterize
+        width,height=[fig.layout.images[0][sz] for sz in ['sizex','sizey']]
+        masks=np.zeros_like(img)
+        for i in range(seg_img.shape[j]):
+            shape_args=[
+            dict(width=width,
+                 height=height,
+                 shape=s) for s in drawn_shapes_data[j][i]]
+            if len(shape_args) > 0:
+                mask=shape_utils.shapes_to_mask(shape_args,
+                     # we only have one label class, so the mask is given value 1
+                     1)
+                # TODO: Maybe there's a more elegant way to downsample the mask?
+                np.moveaxis(masks,0,j)[i,:,:]=mask[::hscale,::wscale]
     found_segs_tensor=np.zeros_like(img)
     # find labels beneath the mask
     labels=set(seg[1==masks])
@@ -261,7 +317,8 @@ def draw_shapes_react(drawn_shapes_data,image_display_graph_figure):
         colormap=['#000000','#8A2BE2'],
         alpha=[0,128],
         color_class_offset=0)
-    fstc_slices=[array_to_data_url(fst_colored[i]) for i in range(fst_colored.shape[0])]
+    fstc_slices=[[
+        array_to_data_url(np.moveaxis(fst_colored,0,j)[i]) for i in range(np.moveaxis(fst_colored,0,j).shape[0])] for j in range(NUM_DIMS_DISPLAYED)]
     return fstc_slices
     
 

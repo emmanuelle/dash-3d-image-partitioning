@@ -43,3 +43,45 @@ function figure_display_update (
     console.log(image_display_figures_);
     return image_display_figures_;
 }
+
+// Return a triangle shape
+// x,y are coordinates of center of triangle
+// w is width, h height,
+// o is orientation, which is the direction the point is pointing
+// (perpendicular to width dimension), possible values are 'up', 'down',
+// 'left', 'right'
+function tri_shape (x,y,w=2.5,h=2.5,o='down',path_args={
+       'line':{'width':2, 'color':"DarkOrange"},
+       'fillcolor':"DarkOrange"}) {
+    // TODO: I believe the positive direction for the y-coordinates is downward
+    // on the screen because we're working with images (the y-axis is reversed
+    // otherwise the image would be upside-down)
+    let m0,c1,c2;
+    if (o=='up') {
+        m0=[x-w*0.5,y+h*0.5];
+        c1=[x,y-0.5*h];
+        c2=[x+w*0.5,y+0.5*h];
+    } else if (o=='down') {
+        m0=[x-w*0.5,y-h*0.5];
+        c1=[x,y+0.5*h];
+        c2=[x+w*0.5,y-0.5*h];
+    } else if (o=='right') {
+        m0=[x-h*0.5,y-w*0.5];
+        c1=[x+h*0.5,y];
+        c2=[x-h*0.5,y+0.5*w];
+    } else if (o=='left') {
+        m0=[x+h*0.5,y-w*0.5];
+        c1=[x-h*0.5,y];
+        c2=[x+h*0.5,y+0.5*w];
+    } else {
+        throw 'bad orientation: ' + o;
+    }
+    path=`M ${m0[0]} ${m0[1]} `;
+    [c1,c2].forEach(c=> path+=`L ${c[0]} ${c[1]} `);
+    path+="Z";
+    return {
+       'type':"path",
+       'path':path,
+       ...path_args
+    };
+}

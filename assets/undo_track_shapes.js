@@ -33,7 +33,7 @@ shape_filter,
     console.log("triggered"); console.log(triggered);
     console.log("graph_relayoutData"); console.log(graph_relayoutData);
     console.log("undo_data"); console.log(undo_data);
-    console.log("shape_data"); console.log(shape_data);
+    console.log("shapes"); console.log(shapes);
     // Things that could happen:
     // Shape drawn / deleted in one of the graphs
     // undo or redo pressed
@@ -62,7 +62,7 @@ shape_filter,
             // and graphB_fig respectively. If graphA or graphB triggered the
             // callback and this data contains shapes, then we populate with the
             // new shapes. Otherwise the shapes from before are used.
-            zip(graph_relayoutData_ids,graph_relayoutData).foreach(
+            zip(graph_relayoutData_ids,graph_relayoutData).forEach(
                 function(t,i){
                     if ((triggered == t[0]) && ("shapes" in t[1])) {
                         shapes[i][slice_indices[i]] = shape_filter(t[1].shapes);
