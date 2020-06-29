@@ -22,6 +22,10 @@ Then you can navigate to the displayed link in your browser. You can also run
 without specifying `LOAD_SUPERPIXEL`, in which case the segmentation will happen
 when the app loads.
 
+To generate a new superpixel file, you can specify a path to the environment
+variable `SAVE_SUPERPIXEL` in which case the app will run, compute the
+superpixels, save them, and exit.
+
 ## Resources
 
 To learn more about Dash, please visit [documentation](https://plot.ly/dash).
