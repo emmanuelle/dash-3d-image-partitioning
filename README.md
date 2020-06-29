@@ -1,53 +1,26 @@
 # Paritioning 3D images with `Dash` and `scikit-image`
 
-## About this app
+## Setup
 
-This is a demo of the Dash interactive Python framework developed by [Plotly](https://plot.ly/).
+run `./setup` to create the virtualenv and download the necessary libraries.
+This will also set up the git submodules.
 
-## How to run this app
+To run programs in this directory, do `source venv/bin/activate` after running
+`./setup`.
 
-(The following instructions apply to Windows command line.)
+## Running
 
-To run this app first clone repository and then open a terminal to the app folder.
-
-```
-git clone https://github.com/plotly/dash-sample-apps.git
-cd dash-sample-apps/apps/dash-uber-rides-demo
-```
-
-Create and activate a new virtual environment (recommended) by running
-the following:
-
-On Windows
-
-```
-virtualenv venv 
-\venv\scripts\activate
-```
-
-Or if using linux
+A recommended command line is
 
 ```bash
-python3 -m venv myvenv
-source myvenv/bin/activate
-```
-
-Install the requirements:
-
-```
-pip install -r requirements.txt
-```
-Run the app:
-
-```
+LOAD_SUPERPIXEL=assets/BraTS19_2013_10_1_flair_superpixels.npz.gz \
+PYTHONPATH=plotly-common \
 python app.py
 ```
-You can run the app on your browser at http://127.0.0.1:8050
 
-
-## Screenshots
-
-![demo.png](demo.png)
+Then you can navigate to the displayed link in your browser. You can also run
+without specifying `LOAD_SUPERPIXEL`, in which case the segmentation will happen
+when the app loads.
 
 ## Resources
 
