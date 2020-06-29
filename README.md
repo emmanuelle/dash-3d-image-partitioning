@@ -1,4 +1,4 @@
-# Dash Exploration of COVID-19 chest X-ray CT images
+# Paritioning 3D images with `Dash` and `scikit-image`
 
 ## About this app
 
