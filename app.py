@@ -179,24 +179,6 @@ app.layout = html.Div(
                 ],
             ),
         ),
-        dcc.Slider(
-            id="image-select-top",
-            min=0,
-            max=len(img_slices[0]),
-            step=1,
-            updatemode="drag",
-            value=0,
-        ),
-        dcc.Slider(
-            id="image-select-side",
-            min=0,
-            max=len(img_slices[1]),
-            step=1,
-            updatemode="drag",
-            value=0,
-        ),
-        html.Div(id="image-select-top-display"),
-        html.Div(id="image-select-side-display"),
         dcc.Checklist(
             id="show-seg-check",
             options=[{"label": "Show segmentation", "value": "show"},],
@@ -205,7 +187,25 @@ app.layout = html.Div(
         html.Button("Undo", id="undo-button", n_clicks=0),
         html.Button("Redo", id="redo-button", n_clicks=0),
         dcc.Graph(id="image-display-graph-top", figure=top_fig),
+        html.Div(id="image-select-top-display"),
+        dcc.Slider(
+            id="image-select-top",
+            min=0,
+            max=len(img_slices[0]),
+            step=1,
+            updatemode="drag",
+            value=0,
+        ),
         dcc.Graph(id="image-display-graph-side", figure=side_fig),
+        html.Div(id="image-select-side-display"),
+        dcc.Slider(
+            id="image-select-side",
+            min=0,
+            max=len(img_slices[1]),
+            step=1,
+            updatemode="drag",
+            value=0,
+        ),
     ]
 )
 
@@ -252,8 +252,8 @@ function(
         tri_shape(sizex-d/2,sizey*image_select_top_value/found_segs_data[0].length,
                   d/2,d/2,'left'),
     ]);
-    return image_display_figures_.concat([image_select_top_value,
-                                          image_select_side_value,
+    return image_display_figures_.concat(["Top image slice: " + image_select_top_value,
+                                          "Side image slice: " + image_select_side_value,
                                           image_select_top_value,
                                           image_select_side_value
                                           ]);
