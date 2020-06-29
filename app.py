@@ -138,6 +138,7 @@ found_seg_slices = [
 ]
 
 app = dash.Dash(__name__)
+server=app.server
 
 top_fig, side_fig = [
     make_default_figure(
