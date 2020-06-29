@@ -32,7 +32,8 @@ function UndoState_redo_clicked(self, redo_n_clicks) {
 // Return true if shapes are different from the last shapes stored in
 // undo_shapes
 function UndoState_shapes_changed (self,shapes) {
-    return !(shapes == self.undo_shapes[self.undo_shapes.length-1]);
+    return !(JSON.stringify(shapes)
+             == JSON.stringify(self.undo_shapes[self.undo_shapes.length-1]));
 }
 
 // Add new shapes and empty the redo list (because if redos exist,

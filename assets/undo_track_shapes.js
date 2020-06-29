@@ -10,7 +10,6 @@
 // slice+figure combination.
 function undo_track_slice_figure_shapes (
 // an array of relayoutData passed from graphs
-// this has the same length 
 graph_relayoutData,
 // their corresponding DOM IDs
 graph_relayoutData_ids,
@@ -63,12 +62,12 @@ shape_filter,
             // callback and this data contains shapes, then we populate with the
             // new shapes. Otherwise the shapes from before are used.
             zip(graph_relayoutData_ids,graph_relayoutData).forEach(
-                function(t,i){
+                    function(t,i){
                     if ((triggered == t[0]) && ("shapes" in t[1])) {
-                        shapes[i][slice_indices[i]] = shape_filter(t[1].shapes);
+                    shapes[i][slice_indices[i]] = shape_filter(t[1].shapes);
                     }
-                }
-            );
+                    }
+                    );
             UndoState_track_changes(undo_data,shapes);
         }
     }

@@ -293,6 +293,7 @@ side_slice_number,
 drawn_shapes_data,
 undo_data)
 {
+    drawn_shapes_data = json_copy(drawn_shapes_data);
     let ret = undo_track_slice_figure_shapes (
     [top_relayout_data,side_relayout_data],
     ["image-display-graph-top.relayoutData",
