@@ -9,10 +9,14 @@ import plot_common
 import image_utils
 import numpy as np
 from nilearn import image
+import nibabel as nib
 import plotly.express as px
 import shape_utils
 from app_utils import get_env
 from sys import exit
+import io
+import base64
+import skimage
 
 DEBUG_MASK=False
 DEFAULT_STROKE_COLOR = px.colors.qualitative.Light24[0]
@@ -95,11 +99,29 @@ def make_default_figure(
     )
     return fig
 
-
 img = image.load_img("assets/BraTS19_2013_10_1_flair.nii")
 img = img.get_data().transpose(2, 0, 1).astype("float")
 print("img.shape", img.shape)
 img = img_as_ubyte((img - img.min()) / (img.max() - img.min()))
+
+def make_empty_found_segments():
+    """ fstc_slices is initialized to a bunch of images containing nothing (clear pixels) """
+    found_segs_tensor = np.zeros_like(img)
+    # convert to a colored image (but it will just be colored "clear") 
+    fst_colored = image_utils.label_to_colors(
+        found_segs_tensor,
+        colormap=["#000000", "#8A2BE2"],
+        alpha=[0, 128],
+        color_class_offset=0,
+    )
+    fstc_slices = [
+        [
+            array_to_data_url(np.moveaxis(fst_colored, 0, j)[i])
+            for i in range(np.moveaxis(fst_colored, 0, j).shape[0])
+        ]
+        for j in range(NUM_DIMS_DISPLAYED)
+    ]
+    return fstc_slices
 
 if len(LOAD_SUPERPIXEL) > 0:
     # load partitioned image (to save time)
@@ -133,9 +155,7 @@ img_slices, seg_slices = [
     for im in [img, seg_img]
 ]
 # initially no slices have been found so we don't draw anything
-found_seg_slices = [
-    ["" for i in range(seg_img.shape[i])] for i, _ in enumerate(seg_slices)
-]
+found_seg_slices = make_empty_found_segments()
 
 app = dash.Dash(__name__)
 server=app.server
@@ -165,7 +185,7 @@ app.layout = html.Div(
         dcc.Store(id="slice-number-side", data=0),
         dcc.Store(id="found-segs", data=found_seg_slices),
         dcc.Store(
-            "undo-data",
+            id="undo-data",
             data=dict(
                 undo_n_clicks=0,
                 redo_n_clicks=0,
@@ -179,6 +199,32 @@ app.layout = html.Div(
                     for i in range(NUM_DIMS_DISPLAYED)
                 ],
             ),
+        ),
+        # the image data of the found segmentation is stored here before it is downloaded
+        dcc.Store(id="found-image-tensor-data",data=""),
+        # In this implementation we want to prevent needless passing of the
+        # large image array from client to server, so when "downloaded-button"
+        # is clicked, the contents of the "found-segs" store is converted to nii
+        # imaging format, converted to base64, and stored in the
+        # "found-image-tensor-data" store. When this store's contents are
+        # updated, they are stored, decoded, in a Blob and a url is created from
+        # the contents of this blob and set as the href of "download-link". Then
+        # somehow we need to simulate a "click" on the "download-link". The
+        # "found-image-tensor-data" store is necessary because we can only pass
+        # base64-encoded data between client and server: we let the browser
+        # handle how data from the browser can be written to the client's
+        # filesystem.
+        html.Button(
+            "Download found partition", id="download-button"
+        ),
+        html.A(
+            id="download-link",
+            download="found_image.nii",
+        ),
+        # required so callback triggered by writing to "found-image-tensor-data"
+        # has an output
+        html.Div(
+            id="dummy"
         ),
         dcc.Checklist(
             id="show-seg-check",
@@ -406,6 +452,91 @@ def draw_shapes_react(
         for j in range(NUM_DIMS_DISPLAYED)
     ]
     return fstc_slices
+
+
+def _decode_b64_slice(s):
+    return base64.b64decode(s.encode())
+
+# Converts found slices to nii file and encodes in b64 so it can be downloaded
+def save_found_slices(fstc_slices):
+    # we just save the first view (it makes no difference in the end)
+    fstc_slices=fstc_slices[0]
+    # convert encoded slices to array
+    # TODO eventually make it format agnostic, right now we just assume png and
+    # strip off length equal to uri_header from the uri string
+    uri_header="data:image/png;base64,"
+    # preallocating the final tensor by reading the first image makes converting
+    # much faster (because all the images have the same dimensions)
+    n_slices=len(fstc_slices)
+    first_img=plot_common.str_to_img_ndarrary(
+        _decode_b64_slice(fstc_slices[0][len(uri_header):]))
+    fstc_ndarray=np.zeros((n_slices,)+first_img.shape,dtype=first_img.dtype)
+    print('first_img.dtype',first_img.dtype)
+    fstc_ndarray[0]=first_img
+    for n,img_slice in enumerate(fstc_slices[1:]):
+        img=plot_common.str_to_img_ndarrary(
+            _decode_b64_slice(img_slice[len(uri_header):]))
+        fstc_ndarray[n]=img
+    print('fstc_ndarray.shape',fstc_ndarray.shape)
+    # if the tensor is all zero (no partitions found) return None
+    if np.all(fstc_ndarray == 0):
+        return None
+    # TODO add affine
+    # technique for writing nii to bytes from here:
+    # https://gist.github.com/arokem/423d915e157b659d37f4aded2747d2b3
+    fstc_nii=nib.Nifti1Image(skimage.img_as_ubyte(fstc_ndarray),affine=None)
+    fstcbytes = io.BytesIO()
+    file_map = fstc_nii.make_file_map({'image':fstcbytes,'header':fstcbytes})
+    fstc_nii.to_file_map(file_map)
+    with open('/tmp/fstcbytes.nii','wb') as fd:
+        fd.write(fstcbytes.getvalue())
+    fstcb64 = base64.b64encode(fstcbytes.getvalue()).decode()
+    # TODO: make clientside callback allowing user to download data of type
+    # 'application/octet-stream'
+    return fstcb64
+
+@app.callback(
+Output("found-image-tensor-data","data"),
+[Input("download-button","n_clicks")],
+[State("found-segs","data")])
+def download_button_react(download_button_n_clicks,found_segs_data):
+    ret = save_found_slices(found_segs_data)
+    if ret is None:
+        return ""
+    return ret
+
+app.clientside_callback(
+"""
+function (found_image_tensor_data) {
+    if (found_image_tensor_data.length <= 0) {
+        return "";
+    }
+    // for some reason you can't use the conversion to ascii from base64 directly
+    // with blob, you have to use the ascii encoded as numbers
+    const byte_chars = window.atob(found_image_tensor_data);
+    const byte_numbers = Array.from(byte_chars,(b,i)=>byte_chars.charCodeAt(i));
+    const byte_array = new Uint8Array(byte_numbers);
+    let b = new Blob([byte_array],{type: 'application/octet-stream'});
+    let url = URL.createObjectURL(b);
+    return url;
+}
+"""
+,
+Output("download-link","href"),
+[Input("found-image-tensor-data","data")])
+
+app.clientside_callback(
+"""
+function (href) {
+    if (href != "") {
+        let download_a=document.getElementById("download-link");
+        download_a.click();
+    }
+    return '';
+}
+""",
+Output("dummy","children"),
+[Input("download-link","href")])
 
 
 if __name__ == "__main__":
