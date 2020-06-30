@@ -28,4 +28,5 @@ superpixels, save them, and exit.
 
 ## Resources
 
-To learn more about Dash, please visit [documentation](https://plot.ly/dash).
+To learn more about [Dash](https://plot.ly/dash).
+To learn more about [scikit-image](https://scikit-image.org/).
