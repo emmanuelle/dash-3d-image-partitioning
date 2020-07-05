@@ -97,7 +97,7 @@ def make_default_figure(
 
 
 img = image.load_img("assets/BraTS19_2013_10_1_flair.nii")
-img = img.get_data().transpose(2, 0, 1).astype("float")
+img = img.get_data().transpose(2, 0, 1)[::-1].astype("float")
 print("img.shape", img.shape)
 img = img_as_ubyte((img - img.min()) / (img.max() - img.min()))
 
