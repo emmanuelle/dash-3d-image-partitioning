@@ -180,13 +180,15 @@ app.layout = html.Div(
                 ],
             ),
         ),
+        html.Div(children=[
         dcc.Checklist(
             id="show-seg-check",
             options=[{"label": "Show segmentation", "value": "show"},],
             value=["show"],
         ),
         html.Button("Undo", id="undo-button", n_clicks=0),
-        html.Button("Redo", id="redo-button", n_clicks=0),
+        html.Button("Redo", id="redo-button", n_clicks=0),]),
+        html.Div(children=[
         dcc.Graph(id="image-display-graph-top", figure=top_fig),
         html.Div(id="image-select-top-display"),
         dcc.Slider(
@@ -195,8 +197,9 @@ app.layout = html.Div(
             max=len(img_slices[0]),
             step=1,
             updatemode="drag",
-            value=0,
-        ),
+            value=len(img_slices[0]) // 2,
+            ),], style={'width':'45%', 'display':'inline-block'}),
+        html.Div(children=[
         dcc.Graph(id="image-display-graph-side", figure=side_fig),
         html.Div(id="image-select-side-display"),
         dcc.Slider(
@@ -205,8 +208,8 @@ app.layout = html.Div(
             max=len(img_slices[1]),
             step=1,
             updatemode="drag",
-            value=0,
-        ),
+            value=len(img_slices[1]) // 2,
+            ),], style={'width':'45%', 'display':'inline-block'}),
     ]
 )
 
